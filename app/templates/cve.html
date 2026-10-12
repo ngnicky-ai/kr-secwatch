@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "_macros.html" import skeleton %}
+{% block title %}CVE · KR-SecWatch{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <h1>CVE 취약점 <span class="muted h1-sub">뉴스 언급 기준</span></h1>
+    <p class="muted">NVD(점수·영향 제품) · CISA KEV(실제 악용) · FIRST EPSS(30일 내 악용 확률) 자동 보강</p>
+  </div>
+  <form class="cve-go" onsubmit="event.preventDefault(); const v=this.q.value.trim().toUpperCase(); if(/^CVE-\d{4}-\d{4,7}$/.test(v)) location.href='/cve/'+v; else this.q.setCustomValidity('CVE-YYYY-NNNN 형식'), this.q.reportValidity();">
+    <input name="q" class="search mono" placeholder="CVE-2026-12345 바로 조회" oninput="this.setCustomValidity('')">
+    <button class="btn">조회</button>
+  </form>
+</section>
+
+<section class="kpis">
+  <div class="card kpi">
+    <span class="kpi-label">추적 중인 CVE</span>
+    <span class="kpi-value">{{ cstats.tracked }}</span>
+    <span class="kpi-sub">뉴스에서 언급된 CVE</span>
+  </div>
+  <div class="card kpi kpi-critical">
+    <span class="kpi-label">실제 악용 (KEV)</span>
+    <span class="kpi-value">{{ cstats.kev }}</span>
+    <span class="kpi-sub">CISA KEV 전체 {{ "{:,}".format(cstats.kev_total) }}건 중</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">CVSS 9.0 이상</span>
+    <span class="kpi-value">{{ cstats.critical }}</span>
+    <span class="kpi-sub">Critical 등급</span>
+  </div>
+  <div class="card kpi kpi-korea">
+    <span class="kpi-label">한국 제조사 제품</span>
+    <span class="kpi-value">{{ cstats.korea }}</span>
+    <span class="kpi-sub">Samsung · LG · 한컴 · 안랩 등</span>
+  </div>
+</section>
+
+<section class="bento">
+  <div class="card span-3 row-2">
+    <div class="card-head"><h2>언급된 CVE</h2></div>
+    <form class="filters" hx-get="{{ url_for('dashboard.cve_list_partial') }}" hx-target="#cve-list"
+          hx-trigger="change, keyup changed delay:400ms from:input[name=q], load">
+      <div class="seg">
+        <label><input type="radio" name="tag" value="" checked><span>전체</span></label>
+        <label><input type="radio" name="tag" value="critical"><span>고위험</span></label>
+        <label><input type="radio" name="tag" value="kev"><span>KEV</span></label>
+        <label><input type="radio" name="tag" value="korea"><span>한국 제품</span></label>
+      </div>
+      <select name="sort" class="select">
+        <option value="priority">우선순위순</option>
+        <option value="recent">최근 언급순</option>
+        <option value="epss">EPSS순</option>
+      </select>
+      <input type="search" name="q" class="search" placeholder="CVE·제품·설명 검색">
+    </form>
+    <div id="cve-list">{{ skeleton() }}</div>
+  </div>
+
+  <div class="card span-1">
+    <div class="card-head"><h2>KEV 신규 등재 <span class="muted">30일</span></h2></div>
+    <ul class="kev-list">
+      {% for k in cstats.kev_recent[:15] %}
+        <li>
+          <a class="mono link" href="{{ url_for('dashboard.cve_detail', cve_id=k.cve_id) }}">{{ k.cve_id }}</a>
+          {% if k.ransomware_use == 'Known' %}<span class="badge-ransom" title="랜섬웨어 캠페인 사용 확인">랜섬웨어</span>{% endif %}
+          <span class="kev-prod">{{ k.vendor }} {{ k.product }}</span>
+          <span class="kev-date">{{ k.date_added.strftime('%m-%d') }} 등재</span>
+        </li>
+      {% else %}
+        <li class="empty">최근 30일 신규 등재 없음</li>
+      {% endfor %}
+    </ul>
+    {% if cstats.kev_recent|length > 15 %}<p class="muted small">외 {{ cstats.kev_recent|length - 15 }}건</p>{% endif %}
+  </div>
+
+  <div class="card span-1">
+    <div class="card-head"><h2>KEV 속 한국 제조사</h2></div>
+    <ul class="kev-list">
+      {% for k in cstats.kev_korea[:12] %}
+        <li>
+          <a class="mono link" href="{{ url_for('dashboard.cve_detail', cve_id=k.cve_id) }}">{{ k.cve_id }}</a>
+          <span class="kev-prod"><b>{{ k.korea_vendor }}</b> {{ k.product }}</span>
+          <span class="kev-date">{{ k.date_added.strftime('%Y-%m-%d') }} 등재</span>
+        </li>
+      {% else %}
+        <li class="empty">없음</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endblock %}

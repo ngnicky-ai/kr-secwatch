@@ -1,0 +1,6 @@
+<a href="{{ url_for('alerts.index') }}" class="btn-icon bell {{ 'has-new' if n }}" id="alert-bell"
+   title="미확인 Critical·High 알람 {{ n }}건" aria-label="알람 {{ n }}건"
+   hx-get="{{ url_for('alerts.badge_partial') }}" hx-trigger="alerts-changed from:body, every 60s" hx-swap="outerHTML">
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+  {% if n %}<span class="bell-count">{{ n if n < 100 else '99+' }}</span>{% endif %}
+</a>

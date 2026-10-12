@@ -1,0 +1,40 @@
+<div class="feed-head muted">{{ pagination.total }}건</div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>등록일 (KST)</th><th>피해 기업</th><th>도메인</th><th>그룹</th><th>업종</th><th>판정 근거</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for v in pagination.items %}
+      <tr>
+        <td class="nowrap tabular">
+          {{ v.discovered | kst('%Y-%m-%d') }}
+          {% if v.discovered and (now_utc - v.discovered).days < 7 %}<span class="badge-new">NEW</span>{% endif %}
+        </td>
+        <td class="strong">{{ v.victim }}</td>
+        <td class="mono muted">{{ v.domain or '-' }}</td>
+        <td><span class="pill">{{ v.group }}</span></td>
+        <td class="muted">{{ v.activity or '-' }}</td>
+        <td class="muted small">{{ v.match_list | join(', ') }}</td>
+        <td><a class="link nowrap" href="{{ v.rl_url }}" target="_blank" rel="noopener">상세 ↗</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty">조건에 맞는 피해 기록이 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if pagination.pages > 1 %}
+{% set base = args.to_dict() %}
+<nav class="pager">
+  {% if pagination.has_prev %}
+    {% set _ = base.update(page=pagination.prev_num) %}
+    <button class="btn btn-ghost" hx-get="{{ url_for('dashboard.ransom_victims_partial', **base) }}" hx-target="#victims">← 이전</button>
+  {% endif %}
+  <span class="muted">{{ pagination.page }} / {{ pagination.pages }}</span>
+  {% if pagination.has_next %}
+    {% set _ = base.update(page=pagination.next_num) %}
+    <button class="btn btn-ghost" hx-get="{{ url_for('dashboard.ransom_victims_partial', **base) }}" hx-target="#victims">다음 →</button>
+  {% endif %}
+</nav>
+{% endif %}

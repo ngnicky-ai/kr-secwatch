@@ -1,0 +1,74 @@
+{% macro article_row(a, compact=false) %}
+<article class="news-row {{ 'is-korea' if a.is_korea }} {{ 'is-nk' if a.is_nk_threat }}">
+  <div class="news-meta">
+    <span class="src src-{{ a.source.region | lower }}">{{ a.source.name }}</span>
+    <time title="{{ a.published_at | kst('%Y-%m-%d %H:%M KST') }}">{{ a.published_at | ago }}</time>
+  </div>
+  <a class="news-title" href="{{ a.url }}" target="_blank" rel="noopener noreferrer">{{ a.title }}</a>
+  {% if not compact and a.summary %}<p class="news-summary">{{ a.summary }}</p>{% endif %}
+  {% if a.is_korea or a.is_nk_threat or a.cves %}
+  <div class="tags">
+    {% if a.is_korea %}<span class="tag tag-korea" title="한국 관련 점수 {{ a.korea_score }} · {{ a.korea_matches }}">한국 관련</span>{% endif %}
+    {% if a.is_nk_threat %}<span class="tag tag-nk" title="{{ a.korea_matches }}">⚠ 북한 위협</span>{% endif %}
+    {% for c in a.cve_list %}
+      <a class="tag tag-cve" href="{{ url_for('dashboard.cve_detail', cve_id=c) }}">{{ c }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</article>
+{% endmacro %}
+
+{% macro sev_class(score) -%}
+  {%- if score is none %}sev-none{% elif score >= 9 %}sev-critical{% elif score >= 7 %}sev-high{% elif score >= 4 %}sev-medium{% else %}sev-low{% endif -%}
+{%- endmacro %}
+
+{% macro cvss_chip(cve) -%}
+  {%- if cve.cvss_score is not none -%}
+  <span class="sev {{ sev_class(cve.cvss_score) }}" title="CVSS {{ cve.cvss_version }} · {{ cve.cvss_vector or '' }}">
+    <b>{{ "%.1f"|format(cve.cvss_score) }}</b> {{ (cve.cvss_severity or '')|title }}
+  </span>
+  {%- else -%}<span class="sev sev-none">점수 없음</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro priority_badge(cve) -%}
+  {%- set p = cve.priority -%}
+  <span class="prio prio-{{ p[0] }}">{{ p[1] }}</span>
+{%- endmacro %}
+
+{% macro epss_text(cve) -%}
+  {%- if cve.epss is not none -%}
+    <span title="EPSS 백분위 {{ '%.1f'|format(cve.epss_percentile * 100) }}">{{ '%.2f'|format(cve.epss * 100) }}%</span>
+  {%- else -%}<span class="muted">-</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro kev_badge(cve) -%}
+  {%- if cve.in_kev %}<span class="badge-kev" title="CISA KEV: 실제 악용 확인">KEV</span>{% endif -%}
+{%- endmacro %}
+
+{# 숫자 카드용 추이선: 흐린 선 + 마지막 값만 강조 점. 각 점에 hover 툴팁 #}
+{% macro sparkline(values, labels, unit='건', accent='var(--accent)') -%}
+  {%- set n = values|length -%}
+  {%- if n > 1 -%}
+  {%- set w, h, pad = 120, 30, 3 -%}
+  {%- set mx = (values|max) or 1 -%}
+  {%- set step = (w - pad * 2) / (n - 1) -%}
+  <svg class="spark" viewBox="0 0 {{ w }} {{ h }}" width="{{ w }}" height="{{ h }}" role="img"
+       aria-label="최근 {{ n }}개 구간 추이: {{ values|join(', ') }}">
+    <polyline fill="none" stroke="var(--spark)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"
+      points="{% for v in values %}{{ '%.1f'|format(pad + loop.index0 * step) }},{{ '%.1f'|format(h - pad - (v / mx) * (h - pad * 2)) }} {% endfor %}"/>
+    {% for v in values %}
+      {%- set x = pad + loop.index0 * step -%}
+      {%- set y = h - pad - (v / mx) * (h - pad * 2) -%}
+      {% if loop.last %}<circle cx="{{ '%.1f'|format(x) }}" cy="{{ '%.1f'|format(y) }}" r="3" fill="{{ accent }}" stroke="var(--surface-solid)" stroke-width="1.5"/>{% endif %}
+      <circle class="spark-hit" cx="{{ '%.1f'|format(x) }}" cy="{{ '%.1f'|format(y) }}" r="6"><title>{{ labels[loop.index0] }}: {{ v }}{{ unit }}</title></circle>
+    {% endfor %}
+  </svg>
+  {%- endif -%}
+{%- endmacro %}
+
+{# HTMX 목록 로딩 자리 표시 #}
+{% macro skeleton(rows=5) -%}
+  <div class="skeleton" aria-busy="true" aria-label="불러오는 중">
+    {% for _ in range(rows) %}<div class="sk-row"><span class="sk sk-meta"></span><span class="sk sk-title"></span><span class="sk sk-line"></span></div>{% endfor %}
+  </div>
+{%- endmacro %}

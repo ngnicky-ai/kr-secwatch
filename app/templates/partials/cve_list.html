@@ -1,0 +1,32 @@
+{% from "_macros.html" import cvss_chip, priority_badge, epss_text, kev_badge %}
+<div class="feed-head muted">{{ rows|length }}건</div>
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>우선순위</th><th>CVE</th><th>CVSS</th><th title="30일 내 악용 확률">EPSS</th><th>영향 제품</th><th>언급</th></tr>
+    </thead>
+    <tbody>
+      {% for c in rows %}
+      {% set m = idx[c.cve_id] %}
+      <tr>
+        <td>{{ priority_badge(c) }}</td>
+        <td class="nowrap">
+          <a class="mono link" href="{{ url_for('dashboard.cve_detail', cve_id=c.cve_id) }}">{{ c.cve_id }}</a>
+          {{ kev_badge(c) }}
+          {% if c.korea_vendor %}<span class="tag tag-korea">{{ c.korea_vendor }}</span>{% endif %}
+        </td>
+        <td class="nowrap">{{ cvss_chip(c) }}</td>
+        <td class="tabular nowrap">{{ epss_text(c) }}</td>
+        <td class="muted small">
+          {% for p in c.affected_list[:2] %}{{ p.vendor }} {{ p.product }}{% if not loop.last %}, {% endif %}{% endfor %}
+          {% if c.affected_list|length > 2 %} 외 {{ c.affected_list|length - 2 }}{% endif %}
+          {% if not c.affected_list %}{{ c.nvd_error or '-' }}{% endif %}
+        </td>
+        <td class="nowrap small">{{ m.count }}건 <span class="muted">· {{ m.last | ago }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty">조건에 맞는 CVE가 없습니다.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

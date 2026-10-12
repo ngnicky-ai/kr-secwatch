@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% from "_macros.html" import skeleton %}
+{% block title %}알람 · KR-SecWatch{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <h1>알람</h1>
+    <p class="muted">같은 사건은 한 번만 생성 · 여러 매체 보도는 하나로 묶음 · 새 알람은 화면에 실시간 표시</p>
+  </div>
+  <button class="btn" hx-post="{{ url_for('alerts.run_api') }}" hx-swap="none"
+          hx-on::after-request="htmx.trigger('#alert-filters', 'change'); document.body.dispatchEvent(new Event('alerts-changed'))">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+    지금 평가
+  </button>
+</section>
+
+<section class="kpis">
+  <div class="card kpi kpi-critical">
+    <span class="kpi-label">미확인 Critical</span>
+    <span class="kpi-value">{{ counts.get('critical', 0) }}</span>
+    <span class="kpi-sub">랜섬웨어 피해 · 한국 제품 KEV</span>
+  </div>
+  <div class="card kpi kpi-nk">
+    <span class="kpi-label">미확인 High</span>
+    <span class="kpi-value">{{ counts.get('high', 0) }}</span>
+    <span class="kpi-sub">한국 관련 보도 · 북한 · KEV</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">최근 24시간 생성</span>
+    <span class="kpi-value">{{ today }}</span>
+    <span class="kpi-sub">미확인 Medium {{ counts.get('medium', 0) }}건</span>
+  </div>
+  <div class="card kpi">
+    <span class="kpi-label">Slack 전송</span>
+    <span class="kpi-value">{{ slack_sent }}</span>
+    <span class="kpi-sub">{% if slack_failed %}<span class="status-err">실패 {{ slack_failed }}건</span>{% else %}실패 없음{% endif %}</span>
+  </div>
+</section>
+
+<section class="bento">
+  <div class="card span-3">
+    <form id="alert-filters" class="filters" hx-get="{{ url_for('alerts.list_partial') }}" hx-target="#alert-list"
+          hx-trigger="change, load, alerts-changed from:body delay:500ms">
+      <div class="seg">
+        <label><input type="radio" name="status" value="open" checked><span>열린 알람</span></label>
+        <label><input type="radio" name="status" value="new"><span>미확인</span></label>
+        <label><input type="radio" name="status" value="ack"><span>확인함</span></label>
+        <label><input type="radio" name="status" value="ignored"><span>무시함</span></label>
+      </div>
+      <div class="seg">
+        <label><input type="radio" name="severity" value="" checked><span>전체</span></label>
+        <label><input type="radio" name="severity" value="critical"><span>Critical</span></label>
+        <label><input type="radio" name="severity" value="high"><span>High</span></label>
+        <label><input type="radio" name="severity" value="medium"><span>Medium</span></label>
+      </div>
+      <select name="kind" class="select">
+        <option value="">모든 유형</option>
+        {% for k, label in kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+      </select>
+      <select name="sort" class="select">
+        <option value="recent">최신순</option>
+        <option value="severity">등급순</option>
+      </select>
+    </form>
+    <div id="alert-list">{{ skeleton() }}</div>
+  </div>
+
+  <div class="card span-1 slack-card">
+    <div class="card-head"><h2>Slack 연동</h2></div>
+    {% if slack_configured %}
+      <p><span class="status status-ok">● 연결됨</span> <span class="muted small">Incoming Webhook</span></p>
+    {% else %}
+      <p><span class="status status-wait">○ 미설정</span></p>
+      <p class="muted small">Slack 앱의 <b>Incoming Webhooks</b>에서 URL을 발급받아 <code>.env</code>의 <code>SLACK_WEBHOOK_URL</code>에 넣고 서버를 재시작하세요.</p>
+    {% endif %}
+    <dl class="kv">
+      <dt>전송 등급</dt><dd>{{ slack_min|title }} 이상</dd>
+      <dt>전송 대상</dt><dd>발생 {{ max_age }}시간 이내</dd>
+      <dt>속도</dt><dd>1건/초, 실행당 최대 10건</dd>
+    </dl>
+    <button class="btn btn-sm" {{ 'disabled' if not slack_configured }}
+            hx-post="{{ url_for('alerts.test_slack') }}" hx-swap="none"
+            hx-on::after-request="const r=JSON.parse(event.detail.xhr.responseText||'{}'); showToast({severity: r.ok ? 'ok' : 'critical', kind_label: 'Slack 테스트', title: r.message || '응답 없음'})">
+      테스트 메시지 보내기
+    </button>
+    <h3 class="rules-title">알람 규칙</h3>
+    <ul class="rules">
+      <li><span class="sev-pill sev-pill-critical">Critical</span> 한국 기업 랜섬웨어 피해, 한국 제조사 제품 KEV</li>
+      <li><span class="sev-pill sev-pill-high">High</span> 해외 매체 한국 관련 보도, 북한 위협, 뉴스 언급 KEV</li>
+      <li><span class="sev-pill sev-pill-medium">Medium</span> 뉴스 언급 CVSS 9.0+, 국내 침해 사고 보도 (대시보드만)</li>
+    </ul>
+  </div>
+</section>
+{% endblock %}

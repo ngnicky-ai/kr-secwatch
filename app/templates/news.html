@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_macros.html" import skeleton %}
+{% block title %}뉴스 · KR-SecWatch{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <h1>통합 뉴스 피드</h1>
+    <p class="muted">국내외 보안 매체 RSS 통합 · 한국 관련/북한 위협/CVE 자동 태깅</p>
+  </div>
+</section>
+
+<form class="filters" hx-get="{{ url_for('dashboard.feed_partial') }}" hx-target="#feed"
+      hx-trigger="change, keyup changed delay:400ms from:input[name=q], load" hx-push-url="false">
+  <div class="seg">
+    {% set region = request.args.get('region', '') %}
+    <label><input type="radio" name="region" value="" {{ 'checked' if not region }}><span>전체</span></label>
+    <label><input type="radio" name="region" value="KR" {{ 'checked' if region == 'KR' }}><span>국내</span></label>
+    <label><input type="radio" name="region" value="INTL" {{ 'checked' if region == 'INTL' }}><span>해외</span></label>
+  </div>
+  <div class="seg">
+    {% set tag = request.args.get('tag', '') %}
+    <label><input type="radio" name="tag" value="" {{ 'checked' if not tag }}><span>모든 기사</span></label>
+    <label><input type="radio" name="tag" value="korea" {{ 'checked' if tag == 'korea' }}><span>한국 관련</span></label>
+    <label><input type="radio" name="tag" value="nk" {{ 'checked' if tag == 'nk' }}><span>⚠ 북한 위협</span></label>
+    <label><input type="radio" name="tag" value="cve" {{ 'checked' if tag == 'cve' }}><span>CVE 포함</span></label>
+  </div>
+  <select name="source" class="select">
+    <option value="">모든 소스</option>
+    {% for s in sources %}<option value="{{ s.key }}" {{ 'selected' if request.args.get('source') == s.key }}>{{ s.name }}</option>{% endfor %}
+  </select>
+  <input type="search" name="q" class="search" placeholder="제목·요약 검색" value="{{ request.args.get('q', '') }}">
+</form>
+
+<section id="feed" class="card feed-card">
+  {{ skeleton() }}
+</section>
+{% endblock %}

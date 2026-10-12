@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% from "_macros.html" import article_row, cvss_chip, priority_badge, kev_badge, sev_class %}
+{% block title %}{{ cve.cve_id }} · KR-SecWatch{% endblock %}
+
+{% block content %}
+<a class="link back" href="{{ url_for('dashboard.cves') }}">← CVE 목록</a>
+<section class="page-head">
+  <div>
+    <h1 class="mono cve-title">{{ cve.cve_id }}</h1>
+    <div class="cve-badges">
+      {{ priority_badge(cve) }} {{ kev_badge(cve) }}
+      {% if cve.korea_vendor %}<span class="tag tag-korea">한국 제조사 · {{ cve.korea_vendor }}</span>{% endif %}
+      <span class="muted small">
+        NVD {{ cve.nvd_status or cve.nvd_error or '조회 전' }}
+        {% if cve.published %} · 공개 {{ cve.published | kst('%Y-%m-%d') }}{% endif %}
+        {% if cve.last_modified %} · 수정 {{ cve.last_modified | kst('%Y-%m-%d') }}{% endif %}
+      </span>
+    </div>
+  </div>
+</section>
+
+<section class="score-grid">
+  <div class="card score-card">
+    <span class="kpi-label">CVSS {{ cve.cvss_version or '' }}</span>
+    {% if cve.cvss_score is not none %}
+      <span class="score-big {{ sev_class(cve.cvss_score) }}-text">{{ "%.1f"|format(cve.cvss_score) }}</span>
+      <span>{{ cvss_chip(cve) }}</span>
+      <code class="vector">{{ cve.cvss_vector }}</code>
+    {% else %}
+      <span class="score-big muted">-</span><span class="muted small">NVD 점수 미산정</span>
+    {% endif %}
+  </div>
+
+  <div class="card score-card">
+    <span class="kpi-label">EPSS · 30일 내 악용 확률</span>
+    {% if cve.epss is not none %}
+      <span class="score-big">{{ '%.2f'|format(cve.epss * 100) }}<small>%</small></span>
+      <div class="meter" role="img" aria-label="EPSS 백분위 {{ '%.1f'|format(cve.epss_percentile * 100) }}">
+        <div class="meter-fill" style="width: {{ '%.1f'|format(cve.epss_percentile * 100) }}%"></div>
+      </div>
+      <span class="muted small">전체 CVE 중 상위 {{ '%.1f'|format((1 - cve.epss_percentile) * 100) }}%</span>
+    {% else %}
+      <span class="score-big muted">-</span><span class="muted small">EPSS 미산정 (신규 CVE는 1~2일 소요)</span>
+    {% endif %}
+  </div>
+
+  <div class="card score-card {{ 'kev-on' if kev }}">
+    <span class="kpi-label">CISA KEV · 실제 악용</span>
+    {% if kev %}
+      <span class="score-big kev-text">악용 확인</span>
+      <dl class="kv">
+        <dt>등재일</dt><dd>{{ kev.date_added }}</dd>
+        <dt>조치 기한</dt><dd>{{ kev.due_date }} <span class="muted small">(미 연방기관 기준)</span></dd>
+        <dt>랜섬웨어</dt><dd>{{ '사용 확인' if kev.ransomware_use == 'Known' else '미확인' }}</dd>
+      </dl>
+    {% else %}
+      <span class="score-big muted">미등재</span>
+      <span class="muted small">현재까지 실제 악용 보고 없음</span>
+    {% endif %}
+  </div>
+</section>
+
+<section class="bento detail-grid">
+  <div class="card span-3">
+    <div class="card-head"><h2>설명</h2></div>
+    {% if kev %}<p class="kev-name"><b>{{ kev.name }}</b></p>{% endif %}
+    <p class="desc">{{ cve.description or (kev.description if kev else '설명 정보가 아직 없습니다.') }}</p>
+    {% if kev and kev.required_action %}
+      <div class="callout"><b>권고 조치</b> {{ kev.required_action }}</div>
+    {% endif %}
+
+    {% if cve.affected_list %}
+      <h3>영향 제품</h3>
+      <ul class="chip-list">
+        {% for p in cve.affected_list %}<li><b>{{ p.vendor }}</b> {{ p.product }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if cve.cwes %}
+      <h3>취약점 유형 (CWE)</h3>
+      <ul class="chip-list">
+        {% for w in cve.cwes.split(',') %}
+          <li><a class="link" href="https://cwe.mitre.org/data/definitions/{{ w[4:] }}.html" target="_blank" rel="noopener">{{ w }}</a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <div class="card span-1">
+    <div class="card-head"><h2>외부 참고</h2></div>
+    <ul class="ext-links">
+      <li><a href="https://nvd.nist.gov/vuln/detail/{{ cve.cve_id }}" target="_blank" rel="noopener">NVD <span>상세·CPE</span></a></li>
+      <li><a href="https://www.cve.org/CVERecord?id={{ cve.cve_id }}" target="_blank" rel="noopener">CVE.org <span>공식 레코드</span></a></li>
+      <li><a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog?search_api_fulltext={{ cve.cve_id }}" target="_blank" rel="noopener">CISA KEV <span>악용 카탈로그</span></a></li>
+      <li><a href="https://github.com/advisories?query={{ cve.cve_id }}" target="_blank" rel="noopener">GitHub Advisory <span>패키지 영향</span></a></li>
+      <li><a href="https://www.exploit-db.com/search?cve={{ cve.cve_id[4:] }}" target="_blank" rel="noopener">Exploit-DB <span>공개 익스플로잇</span></a></li>
+      <li><a href="https://knvd.krcert.or.kr/" target="_blank" rel="noopener">KNVD <span>KISA 취약점 포털</span></a></li>
+    </ul>
+  </div>
+
+  {% if cve.reference_list %}
+  <div class="card span-2">
+    <div class="card-head"><h2>참고 자료 <span class="muted">NVD 등록</span></h2></div>
+    <ul class="ref-list">
+      {% for u in cve.reference_list %}<li><a href="{{ u }}" target="_blank" rel="noopener noreferrer">{{ u }}</a></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="card {{ 'span-2' if cve.reference_list else 'span-4' }}">
+    <div class="card-head"><h2>관련 기사 <span class="muted">{{ articles|length }}건</span></h2></div>
+    {% for a in articles %}{{ article_row(a, compact=true) }}{% else %}<p class="empty">수집된 기사 중 이 CVE를 언급한 기사가 없습니다.</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

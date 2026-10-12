@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% from "_macros.html" import article_row, cvss_chip, kev_badge, sparkline %}
+{% block title %}대시보드 · KR-SecWatch{% endblock %}
+{% block head %}
+<script defer src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <h1>한국 보안 위협 모니터링</h1>
+    <p class="muted">마지막 수집 {{ stats.last_fetch | kst('%Y-%m-%d %H:%M') }} KST · 누적 {{ "{:,}".format(stats.total) }}건</p>
+  </div>
+  <button class="btn" hx-post="{{ url_for('api.collect') }}" hx-swap="none"
+          hx-on::after-request="location.reload()" hx-indicator="this">
+    <svg class="spin-on-load" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+    지금 수집
+  </button>
+</section>
+
+{# 최근 24시간 상황 #}
+{% set lv = situation.level %}
+<section class="situation situation-{{ lv[0] }}" aria-label="최근 24시간 상황">
+  <span class="situation-dot" aria-hidden="true"></span>
+  <span class="situation-level">{{ lv[1] }}</span>
+  <span class="situation-counts">
+    최근 24시간 · Critical <b>{{ situation.counts.get('critical', 0) }}</b>
+    · High <b>{{ situation.counts.get('high', 0) }}</b>
+    · Medium <b>{{ situation.counts.get('medium', 0) }}</b>
+  </span>
+  {% if situation.top %}
+    <a class="situation-top" href="{{ situation.top.internal_url or situation.top.url }}"
+       {% if not situation.top.internal_url %}target="_blank" rel="noopener noreferrer"{% endif %}>{{ situation.top.title }}</a>
+  {% endif %}
+  <a class="situation-link" href="{{ url_for('alerts.index') }}">알람 보기 →</a>
+</section>
+
+<section class="kpis">
+  <a class="card kpi kpi-critical" href="{{ url_for('dashboard.ransomware') }}">
+    <span class="kpi-label">한국 랜섬웨어 피해 (30일)</span>
+    <div class="kpi-row">
+      <span class="kpi-value">{{ rstats.kr_30d }}</span>
+      {{ sparkline(rstats.monthly['values'][-12:], rstats.monthly.labels[-12:], '건', 'var(--critical)') }}
+    </div>
+    <span class="kpi-sub">올해 {{ rstats.kr_this_year }}건 · 전체 {{ rstats.kr_total }}건 · 추이 12개월</span>
+  </a>
+  <a class="card kpi kpi-korea" href="{{ url_for('dashboard.news', tag='korea') }}">
+    <span class="kpi-label">한국 관련 (해외 7일)</span>
+    <div class="kpi-row">
+      <span class="kpi-value">{{ stats.korea_7d }}</span>
+      {{ sparkline(stats.spark.korea, stats.spark.labels, '건', 'var(--korea)') }}
+    </div>
+    <span class="kpi-sub">해외 매체의 한국 언급 · 추이 12일</span>
+  </a>
+  <a class="card kpi kpi-nk" href="{{ url_for('dashboard.news', tag='nk') }}">
+    <span class="kpi-label">⚠ 북한 위협 (7일)</span>
+    <div class="kpi-row">
+      <span class="kpi-value">{{ stats.nk_7d }}</span>
+      {{ sparkline(stats.spark.nk, stats.spark.labels, '건', 'var(--nk)') }}
+    </div>
+    <span class="kpi-sub">Lazarus · Kimsuky 등 · 추이 12일</span>
+  </a>
+  <a class="card kpi" href="{{ url_for('dashboard.cves') }}">
+    <span class="kpi-label">CVE 언급 (7일)</span>
+    <div class="kpi-row">
+      <span class="kpi-value">{{ stats.cve_7d }}</span>
+      {{ sparkline(stats.spark.cve, stats.spark.labels, '건 (CVE 언급 기사)') }}
+    </div>
+    <span class="kpi-sub">고유 CVE 수 · 추이는 언급 기사 수</span>
+  </a>
+  <a class="card kpi" href="{{ url_for('dashboard.news') }}">
+    <span class="kpi-label">오늘 수집 기사</span>
+    <div class="kpi-row">
+      <span class="kpi-value">{{ stats.today_count }}</span>
+      {{ sparkline(stats.spark.total, stats.spark.labels) }}
+    </div>
+    <span class="kpi-sub">KST 00시 이후 발행 · 추이 12일</span>
+  </a>
+</section>
+
+<section class="bento">
+  <div class="card span-3 chart-card">
+    <div class="card-head">
+      <h2>일자별 수집 기사 <span class="muted">최근 14일</span></h2>
+      <div class="legend">
+        <span><i style="background:var(--series-1)"></i>국내</span>
+        <span><i style="background:var(--series-2)"></i>해외</span>
+      </div>
+    </div>
+    <div id="trend-chart" class="chart"></div>
+    <details class="table-view">
+      <summary>표로 보기</summary>
+      <table>
+        <thead><tr><th>날짜</th><th>국내</th><th>해외</th></tr></thead>
+        <tbody>
+        {% for l in stats.trend.labels %}
+          <tr><td>{{ l }}</td><td>{{ stats.trend.kr[loop.index0] }}</td><td>{{ stats.trend.intl[loop.index0] }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  </div>
+
+  <div class="card span-1 row-2 alert-card">
+    <div class="card-head">
+      <h2>🚨 한국 관련 알람</h2>
+      <a class="link" href="{{ url_for('alerts.index') }}">전체</a>
+    </div>
+    <div class="alert-list">
+      {% for a in alerts %}
+        <a class="alert-item asev-{{ a.severity }} {{ 'done' if a.status != 'new' }}" href="{{ a.internal_url or a.url }}"
+           {% if not a.internal_url %}target="_blank" rel="noopener noreferrer"{% endif %}>
+          <span class="alert-kind">{{ 'Critical' if a.severity == 'critical' else 'High' }} · {{ kind_labels.get(a.kind, a.kind) }}</span>
+          <span class="alert-title">{{ a.title }}</span>
+          <span class="alert-time">{{ a.event_at | ago }}{% if a.related_list %} · 보도 {{ a.related_list|length + 1 }}건{% endif %}{% if a.status == 'ack' %} · 확인함{% endif %}</span>
+        </a>
+      {% else %}
+        <p class="empty">열린 Critical·High 알람이 없습니다.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card span-2">
+    <div class="card-head"><h2>소스 상태 <span class="muted">7일 기사 수</span></h2></div>
+    {% set maxc = (stats.source_counts.values() | max) or 1 %}
+    <ul class="source-list">
+      {% for s in stats.sources %}
+      <li>
+        <div class="source-name">
+          {% if s.last_status == 'ok' %}<span class="status status-ok" title="정상">● 정상</span>
+          {% elif s.last_status == 'error' %}<span class="status status-err" title="{{ s.last_error }}">✕ 오류</span>
+          {% else %}<span class="status status-wait">○ 대기</span>{% endif %}
+          <span>{{ s.name }}</span>
+          <span class="badge-region">{{ '국내' if s.region == 'KR' else '해외' }}</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" style="width: {{ (stats.source_counts[s.key] / maxc * 100) | round(1) }}%"></div></div>
+        <span class="bar-value">{{ stats.source_counts[s.key] }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card span-1">
+    <div class="card-head"><h2>많이 언급된 CVE <span class="muted">7일</span></h2><a class="link" href="{{ url_for('dashboard.cves') }}">전체</a></div>
+    <ul class="cve-list">
+      {% for cid, n in stats.top_cves %}
+        {% set c = cve_map.get(cid) %}
+        <li>
+          <span>
+            <a class="mono" href="{{ url_for('dashboard.cve_detail', cve_id=cid) }}">{{ cid }}</a>
+            {% if c %}{{ kev_badge(c) }}{% endif %}
+          </span>
+          <span class="cve-meta">{% if c %}{{ cvss_chip(c) }}{% endif %} <span>{{ n }}건</span></span>
+        </li>
+      {% else %}
+        <li class="empty">최근 7일간 CVE 언급 없음</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card span-4">
+    <div class="card-head">
+      <h2>최신 뉴스</h2>
+      <a class="link" href="{{ url_for('dashboard.news') }}">전체 뉴스 →</a>
+    </div>
+    <div class="news-grid">
+      {% for a in articles %}{{ article_row(a, compact=true) }}{% else %}<p class="empty">아직 수집된 기사가 없습니다. ‘지금 수집’을 눌러보세요.</p>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="module">
+  // module = 지연 실행: defer로 받은 ApexCharts가 먼저 로드된 뒤 실행됨
+  const trend = {{ stats.trend | tojson }};
+  let chart;
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function renderTrend() {
+    if (chart) chart.destroy();
+    const isDark = css("--is-dark") === "1";
+    chart = new ApexCharts(document.getElementById("trend-chart"), {
+      chart: { type: "bar", stacked: true, height: 260, toolbar: { show: false },
+               background: "transparent", fontFamily: "inherit", animations: { speed: 400 } },
+      theme: { mode: isDark ? "dark" : "light" },
+      series: [{ name: "국내", data: trend.kr }, { name: "해외", data: trend.intl }],
+      colors: [css("--series-1"), css("--series-2")],
+      plotOptions: { bar: { columnWidth: "55%", borderRadius: 4, borderRadiusApplication: "end",
+                            borderRadiusWhenStacked: "last" } },
+      stroke: { show: true, width: 2, colors: [css("--surface-solid")] },
+      dataLabels: { enabled: false },
+      legend: { show: false },
+      grid: { borderColor: css("--grid"), strokeDashArray: 0, yaxis: { lines: { show: true } } },
+      xaxis: { categories: trend.labels, axisBorder: { color: css("--axis") }, axisTicks: { show: false },
+               labels: { style: { colors: css("--text-muted") } } },
+      yaxis: { labels: { style: { colors: css("--text-muted") }, formatter: v => Math.round(v) } },
+      tooltip: { shared: true, intersect: false, theme: isDark ? "dark" : "light",
+                 y: { formatter: v => v + "건" } },
+      states: { hover: { filter: { type: "darken", value: 0.85 } } },
+    });
+    chart.render();
+  }
+  renderTrend();
+  document.addEventListener("themechange", renderTrend);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderTrend);
+
+  // 5분마다 화면 새로고침 (스케줄러가 백그라운드에서 수집)
+  setTimeout(() => location.reload(), 5 * 60 * 1000);
+</script>
+{% endblock %}

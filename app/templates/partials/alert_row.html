@@ -1,0 +1,37 @@
+<article class="alert-row asev-{{ a.severity }} st-{{ a.status }}" id="alert-{{ a.id }}">
+  <div class="alert-row-main">
+    <div class="alert-row-meta">
+      <span class="sev-pill sev-pill-{{ a.severity }}">{{ {'critical': 'Critical', 'high': 'High', 'medium': 'Medium'}[a.severity] }}</span>
+      <span class="alert-kind-label">{{ kinds.get(a.kind, a.kind) }}</span>
+      <time title="발생 {{ a.event_at | kst('%Y-%m-%d %H:%M KST') }}">{{ a.event_at | ago }}</time>
+      {% if a.slack_status == 'sent' %}<span class="slack slack-sent" title="{{ a.slack_sent_at | kst('%m-%d %H:%M') }} 전송">Slack 전송됨</span>
+      {% elif a.slack_status == 'failed' %}<span class="slack slack-failed" title="{{ a.slack_reason }}">Slack 실패 ({{ a.slack_attempts }}회)</span>
+      {% elif a.slack_status == 'pending' %}<span class="slack slack-pending">Slack 대기</span>
+      {% else %}<span class="slack slack-skipped" title="{{ a.slack_reason }}">Slack 제외 · {{ a.slack_reason }}</span>{% endif %}
+    </div>
+    <div class="alert-row-title">
+      {% if a.url %}<a href="{{ a.url }}" target="_blank" rel="noopener noreferrer">{{ a.title }}</a>{% else %}{{ a.title }}{% endif %}
+      {% if a.internal_url %}<a class="link small" href="{{ a.internal_url }}">상세 →</a>{% endif %}
+    </div>
+    {% if a.field_list %}
+    <dl class="alert-fields">
+      {% for k, v in a.field_list if v and v != '-' %}<div><dt>{{ k }}</dt><dd>{{ v }}</dd></div>{% endfor %}
+    </dl>
+    {% endif %}
+    {% if a.related_list %}
+    <details class="related">
+      <summary>같은 사건 보도 {{ a.related_list|length }}건 더</summary>
+      <ul>{% for r in a.related_list %}<li><span class="muted">{{ r.source }}</span> <a href="{{ r.url }}" target="_blank" rel="noopener noreferrer">{{ r.title }}</a></li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+  </div>
+  <div class="alert-row-actions">
+    {% if a.status == 'new' %}
+      <button class="btn btn-sm" hx-post="{{ url_for('alerts.set_status', alert_id=a.id) }}" hx-vals='{"status": "ack"}' hx-target="#alert-{{ a.id }}" hx-swap="outerHTML">확인</button>
+      <button class="btn btn-sm btn-ghost" hx-post="{{ url_for('alerts.set_status', alert_id=a.id) }}" hx-vals='{"status": "ignored"}' hx-target="#alert-{{ a.id }}" hx-swap="outerHTML">무시</button>
+    {% else %}
+      <span class="muted small">{{ '확인함' if a.status == 'ack' else '무시함' }}</span>
+      <button class="btn btn-sm btn-ghost" hx-post="{{ url_for('alerts.set_status', alert_id=a.id) }}" hx-vals='{"status": "new"}' hx-target="#alert-{{ a.id }}" hx-swap="outerHTML">되돌리기</button>
+    {% endif %}
+  </div>
+</article>
